@@ -1,0 +1,88 @@
+name: async-payment-processing
+
+x-application: &application
+  image: async-payment-processing:local
+  build: .
+  init: true
+  environment: &application-environment
+    PAYMENTS_DATABASE_HOST: postgres
+    PAYMENTS_DATABASE_PORT: "5432"
+    PAYMENTS_DATABASE_USER: ${PAYMENTS_DATABASE_USER:-payments}
+    PAYMENTS_DATABASE_PASSWORD: ${PAYMENTS_DATABASE_PASSWORD:?Set the database password in .env}
+    PAYMENTS_DATABASE_NAME: ${PAYMENTS_DATABASE_NAME:-payments}
+
+services:
+  postgres:
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_USER: ${PAYMENTS_DATABASE_USER:-payments}
+      POSTGRES_PASSWORD: ${PAYMENTS_DATABASE_PASSWORD:?Set the database password in .env}
+      POSTGRES_DB: ${PAYMENTS_DATABASE_NAME:-payments}
+    ports:
+      - "127.0.0.1:${PAYMENTS_DATABASE_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.3.6-management
+    hostname: payments-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-payments}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set the broker password in .env}
+    ports:
+      - "127.0.0.1:${RABBITMQ_AMQP_PORT:-5673}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+  migrate:
+    <<: *application
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *application
+    environment:
+      <<: *application-environment
+      PAYMENTS_API_KEY: ${PAYMENTS_API_KEY:?Set the API key in .env}
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import os, urllib.request;
+          urllib.request.urlopen(urllib.request.Request(
+          'http://127.0.0.1:8000/health',
+          headers={'X-API-Key': os.environ['PAYMENTS_API_KEY']}), timeout=3).close()
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  rabbitmq-data:

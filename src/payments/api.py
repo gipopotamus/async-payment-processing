@@ -1,5 +1,7 @@
 """HTTP composition root and API-wide authentication dependencies."""
 
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from hmac import compare_digest
 from importlib.metadata import version
 from typing import Annotated, Literal, cast
@@ -7,8 +9,10 @@ from typing import Annotated, Literal, cast
 from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from payments.settings import Settings
+from payments.database import Database, create_database
+from payments.settings import DatabaseSettings, Settings
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -22,6 +26,19 @@ class HealthResponse(BaseModel):
 def get_settings(request: Request) -> Settings:
     """Resolve configuration from the current application instance."""
     return cast(Settings, request.app.state.settings)
+
+
+def get_database(request: Request) -> Database:
+    """Resolve the database composed during this application's lifespan."""
+    return cast(Database, request.app.state.database)
+
+
+async def get_session(
+    database: Annotated[Database, Depends(get_database)],
+) -> AsyncGenerator[AsyncSession]:
+    """Provide an isolated session and roll back uncommitted work on close."""
+    async with database.sessions() as session:
+        yield session
 
 
 def require_api_key(
@@ -42,19 +59,33 @@ def get_health() -> HealthResponse:
     return HealthResponse()
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
     """Compose an API with explicit configuration injection.
 
     Args:
         settings: Validated configuration. Load from the environment when omitted.
+        database: Borrowed database resource. Otherwise create and own one at startup.
 
     Returns:
         An application whose routes require the configured API key.
     """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Close only resources created by this application's composition root."""
+        resource = database if database is not None else create_database(DatabaseSettings())
+        app.state.database = resource
+        try:
+            yield
+        finally:
+            if database is None:
+                await resource.close()
+
     app = FastAPI(
         title="Async Payment Processing",
         version=version("async-payment-processing"),
         dependencies=[Depends(require_api_key)],
+        lifespan=lifespan,
         docs_url=None,
         redoc_url=None,
         openapi_url=None,

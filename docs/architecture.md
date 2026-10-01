@@ -1,7 +1,8 @@
 # Implementation contract
 
-This document records planned behavior. Only the foundation described in README
-is implemented in milestone 1.
+This document records the final planned behavior. Milestones 1-2 implement the
+foundation, database lifecycle, models, and migrations described in README. Payment
+use cases, outbox publication, and broker consumers are still planned.
 
 ## Responsibilities and dependency injection
 
