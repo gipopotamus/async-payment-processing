@@ -24,9 +24,11 @@ class Settings(EnvironmentSettings):
 
     Attributes:
         api_key: Shared credential required by every application endpoint.
+        webhook_allowed_origins: Callback scheme/host/port allowlist; empty denies all.
     """
 
     api_key: SecretStr = Field(min_length=16)
+    webhook_allowed_origins: frozenset[str] = frozenset()
 
 
 class DatabaseSettings(EnvironmentSettings):

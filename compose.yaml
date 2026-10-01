@@ -61,6 +61,7 @@ services:
     environment:
       <<: *application-environment
       PAYMENTS_API_KEY: ${PAYMENTS_API_KEY:?Set the API key in .env}
+      PAYMENTS_WEBHOOK_ALLOWED_ORIGINS: ${PAYMENTS_WEBHOOK_ALLOWED_ORIGINS:-[]}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     depends_on:

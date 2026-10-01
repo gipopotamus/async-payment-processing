@@ -1,8 +1,8 @@
 # Implementation contract
 
-This document records the final planned behavior. Milestones 1-2 implement the
-foundation, database lifecycle, models, and migrations described in README. Payment
-use cases, outbox publication, and broker consumers are still planned.
+This document records the implementation contract. Milestones 1-3 implement the
+foundation, database lifecycle, models, migrations, and payment creation/lookup
+described in README. Outbox publication and broker consumers are still planned.
 
 ## Responsibilities and dependency injection
 
@@ -27,6 +27,7 @@ KISS/YAGNI to scope. Document public contracts and non-obvious failure behavior.
 
 - Currency is RUB, USD, or EUR.
 - Parse amounts as Decimal, persist as NUMERIC(18,2), and serialize as JSON strings.
+- Accept amounts only as JSON strings, avoiding binary float decoding.
 - Require a finite positive amount within the column range, with at most two
   effective fractional digits. Reject excess precision before database insertion.
 - POST /api/v1/payments requires X-API-Key and Idempotency-Key.
@@ -35,9 +36,15 @@ KISS/YAGNI to scope. Document public contracts and non-obvious failure behavior.
   status without creating another payment or initial event.
 - The same key with a different normalized payload returns 409.
 - A unique database constraint resolves concurrent requests with the same key.
+- The repository uses INSERT ON CONFLICT DO NOTHING under READ COMMITTED, then
+  reads the existing payment in a fresh statement. Only the insertion winner
+  creates the initial event; competing bodies are compared after the store returns.
 - GET /api/v1/payments/{payment_id} returns payment details or 404.
 - Normalize validated defaults, Decimal values, and JSON object key ordering
   before comparing idempotent payloads. Include webhook_url in the comparison.
+- Validate nested metadata for non-finite numbers, NUL, and unpaired Unicode
+  surrogates before hashing or PostgreSQL insertion. Do not echo request values
+  in validation errors or SQL parameters in storage errors.
 
 ## Transactional outbox
 
@@ -52,6 +59,9 @@ database update. Consumers must tolerate duplicates.
 
 An outbox record includes its event ID, event type, payment ID, destination,
 payload, available_at, published_at, and publication attempt/error information.
+Creation currently records `payment.created` routed to `payments.new`, with payload
+`event_id`, `payment_id`, `stage: "processing"`, and `attempt: 1`. Event IDs remain
+stable across publication retries.
 Retry publication failures with capped backoff. Broker unavailability does not
 consume the webhook's business retry budget.
 

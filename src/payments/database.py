@@ -28,6 +28,7 @@ def create_database(settings: DatabaseSettings) -> Database:
         settings.url,
         pool_pre_ping=True,
         hide_parameters=True,
+        isolation_level="READ COMMITTED",
         connect_args={"timeout": 5},
     )
     return Database(engine)
