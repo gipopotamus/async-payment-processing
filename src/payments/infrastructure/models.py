@@ -23,7 +23,7 @@ from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from payments.domain import (
+from payments.core.domain import (
     AMOUNT_PRECISION,
     AMOUNT_SCALE,
     MAX_ATTEMPTS,

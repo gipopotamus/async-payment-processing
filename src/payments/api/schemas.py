@@ -6,20 +6,17 @@ from math import isfinite
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, JsonValue, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, JsonValue, field_validator
 
-from payments.domain import (
+from payments.core.domain import (
     AMOUNT_PRECISION,
     AMOUNT_SCALE,
-    MAX_ATTEMPTS,
     Currency,
     NewPayment,
     PaymentStatus,
     WebhookStatus,
-    WorkflowEvent,
-    WorkflowStage,
 )
-from payments.domain import JsonValue as DomainJsonValue
+from payments.core.domain import JsonValue as DomainJsonValue
 
 
 def validate_json(value: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -119,18 +116,3 @@ class PaymentDetails(AcceptedPayment):
     webhook_status: WebhookStatus
     webhook_attempts: int
     webhook_delivered_at: datetime | None
-
-
-class WorkflowEnvelope(BaseModel):
-    """Validate the broker boundary after raw bytes have reached the handler."""
-
-    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
-
-    event_id: UUID
-    payment_id: UUID
-    stage: WorkflowStage
-    attempt: Annotated[StrictInt, Field(ge=1, le=MAX_ATTEMPTS)]
-
-    def to_event(self) -> WorkflowEvent:
-        """Detach the application's workflow identity from Pydantic and AMQP."""
-        return WorkflowEvent(self.event_id, self.payment_id, self.stage, self.attempt)

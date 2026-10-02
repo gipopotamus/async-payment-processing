@@ -4,6 +4,14 @@ The API, outbox relay, and payment consumer run as separate processes.
 Integration checks cover PostgreSQL, RabbitMQ, and an HTTP webhook receiver.
 Docker image build and Compose startup remain unverified.
 
+## Source layout
+
+- `api`: HTTP routes, authentication, and request/response schemas.
+- `application`: payment creation, processing, and webhook delivery rules.
+- `core`: domain types, configuration, and logging.
+- `infrastructure`: PostgreSQL repositories, RabbitMQ publication, and external adapters.
+- `workers`: outbox/consumer entry points and broker message validation.
+
 ## Responsibilities and dependency injection
 
 - The API composes dependencies and translates HTTP requests and errors.

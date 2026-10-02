@@ -6,9 +6,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy.engine import Connection
 
-from payments.database import create_database
-from payments.models import Base
-from payments.settings import DatabaseSettings
+from payments.core.settings import DatabaseSettings
+from payments.infrastructure.database import create_database
+from payments.infrastructure.models import Base
 
 config = context.config
 if config.config_file_name is not None:

@@ -17,20 +17,20 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from examples.receiver import create_receiver
-from payments.adapters import EmulatedGateway, HttpWebhookSender
-from payments.api import create_app
-from payments.broker import RabbitEventPublisher, create_broker
-from payments.consumer import configure_consumer
-from payments.database import Database
-from payments.domain import DEAD_LETTER_QUEUE, NEW_PAYMENTS_QUEUE, Publication, WorkflowStage
-from payments.models import OutboxEvent, Payment
-from payments.outbox import OutboxRelay
-from payments.processing import PaymentProcessor
-from payments.schemas import WorkflowEnvelope
-from payments.services import WebhookPolicy
-from payments.settings import BrokerSettings, Settings
-from payments.worker import run_relay
-from payments.workflow_repository import WorkflowRepository
+from payments.api.app import create_app
+from payments.application.processing import PaymentProcessor
+from payments.application.services import WebhookPolicy
+from payments.core.domain import DEAD_LETTER_QUEUE, NEW_PAYMENTS_QUEUE, Publication, WorkflowStage
+from payments.core.settings import BrokerSettings, Settings
+from payments.infrastructure.adapters import EmulatedGateway, HttpWebhookSender
+from payments.infrastructure.broker import RabbitEventPublisher, create_broker
+from payments.infrastructure.database import Database
+from payments.infrastructure.models import OutboxEvent, Payment
+from payments.infrastructure.outbox import OutboxRelay
+from payments.infrastructure.workflow_repository import WorkflowRepository
+from payments.workers.consumer import configure_consumer
+from payments.workers.outbox import run_relay
+from payments.workers.schemas import WorkflowEnvelope
 
 pytestmark = [pytest.mark.integration, pytest.mark.broker_integration]
 

@@ -50,7 +50,7 @@ failure windows. Preserve its data directory for the full process restart.
 
 ## Verification boundaries
 
-Ruff, formatting, strict mypy (32 source files), all 98 tests with explicit live
+Ruff, formatting, strict mypy (38 source files), all 98 tests with explicit live
 service settings (none skipped), and Alembic schema-drift checks pass locally.
 The lockfile consistency check and actionlint workflow validation also pass.
 GitHub Actions also passed these checks with PostgreSQL and RabbitMQ service

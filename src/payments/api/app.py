@@ -16,12 +16,12 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from payments.database import Database, DatabaseUnavailable, create_database
-from payments.domain import IdempotencyConflict, InvalidWebhook, PaymentNotFound
-from payments.repository import PaymentRepository
-from payments.schemas import AcceptedPayment, CreatePaymentRequest, PaymentDetails
-from payments.services import PaymentService, WebhookPolicy
-from payments.settings import DatabaseSettings, Settings
+from payments.api.schemas import AcceptedPayment, CreatePaymentRequest, PaymentDetails
+from payments.application.services import PaymentService, WebhookPolicy
+from payments.core.domain import IdempotencyConflict, InvalidWebhook, PaymentNotFound
+from payments.core.settings import DatabaseSettings, Settings
+from payments.infrastructure.database import Database, DatabaseUnavailable, create_database
+from payments.infrastructure.repository import PaymentRepository
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 logger = logging.getLogger(__name__)

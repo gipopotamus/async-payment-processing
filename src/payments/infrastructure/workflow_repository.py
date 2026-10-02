@@ -9,8 +9,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
-from payments.database import Database
-from payments.domain import (
+from payments.core.domain import (
     DEAD_LETTER_QUEUE,
     NEW_PAYMENTS_QUEUE,
     InvalidWorkflow,
@@ -18,8 +17,9 @@ from payments.domain import (
     WorkflowEvent,
     WorkflowNotReady,
 )
-from payments.models import OutboxEvent, Payment
-from payments.repository import payment_snapshot
+from payments.infrastructure.database import Database
+from payments.infrastructure.models import OutboxEvent, Payment
+from payments.infrastructure.repository import payment_snapshot
 
 
 class WorkflowRepository:

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from payments.settings import DatabaseSettings
+from payments.core.settings import DatabaseSettings
 
 
 class DatabaseUnavailable(Exception):

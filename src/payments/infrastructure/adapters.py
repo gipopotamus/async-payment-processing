@@ -7,14 +7,14 @@ from uuid import UUID
 
 import httpx
 
-from payments.domain import (
+from payments.application.services import WebhookPolicy
+from payments.core.domain import (
     AMOUNT_SCALE,
     InvalidWebhook,
     PaymentSnapshot,
     PaymentStatus,
     WebhookError,
 )
-from payments.services import WebhookPolicy
 
 
 def gateway_outcome(payment_id: UUID) -> tuple[PaymentStatus, float]:

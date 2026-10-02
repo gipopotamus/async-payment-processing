@@ -10,7 +10,7 @@ from alembic.config import Config
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from payments.database import Database
+from payments.infrastructure.database import Database
 
 
 def migrate(connection: Connection, revision: str = "head") -> None:

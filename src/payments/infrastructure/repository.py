@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from payments.domain import (
+from payments.core.domain import (
     NEW_PAYMENTS_QUEUE,
     PAYMENT_CREATED_EVENT,
     NewPayment,
@@ -14,7 +14,7 @@ from payments.domain import (
     WorkflowEvent,
     WorkflowStage,
 )
-from payments.models import OutboxEvent, Payment
+from payments.infrastructure.models import OutboxEvent, Payment
 
 
 def payment_snapshot(payment: Payment) -> PaymentSnapshot:

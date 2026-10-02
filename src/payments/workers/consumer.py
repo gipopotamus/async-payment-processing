@@ -10,16 +10,21 @@ from faststream.rabbit import Channel, RabbitBroker, RabbitMessage
 from faststream.rabbit.message import RabbitMessage as RawRabbitMessage
 from pydantic import ValidationError
 
-from payments.adapters import EmulatedGateway, HttpWebhookSender
-from payments.broker import PAYMENTS_QUEUE, create_broker
-from payments.database import create_database
-from payments.domain import InvalidWorkflow
-from payments.logging_config import configure_logging
-from payments.processing import PaymentProcessor
-from payments.schemas import WorkflowEnvelope
-from payments.services import WebhookPolicy
-from payments.settings import BrokerSettings, ConsumerSettings, DatabaseSettings, WebhookSettings
-from payments.workflow_repository import WorkflowRepository
+from payments.application.processing import PaymentProcessor
+from payments.application.services import WebhookPolicy
+from payments.core.domain import InvalidWorkflow
+from payments.core.logging import configure_logging
+from payments.core.settings import (
+    BrokerSettings,
+    ConsumerSettings,
+    DatabaseSettings,
+    WebhookSettings,
+)
+from payments.infrastructure.adapters import EmulatedGateway, HttpWebhookSender
+from payments.infrastructure.broker import PAYMENTS_QUEUE, create_broker
+from payments.infrastructure.database import create_database
+from payments.infrastructure.workflow_repository import WorkflowRepository
+from payments.workers.schemas import WorkflowEnvelope
 
 logger = logging.getLogger(__name__)
 

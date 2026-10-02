@@ -7,7 +7,7 @@ from typing import Protocol
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from payments.domain import (
+from payments.core.domain import (
     AMOUNT_SCALE,
     IdempotencyConflict,
     InvalidWebhook,

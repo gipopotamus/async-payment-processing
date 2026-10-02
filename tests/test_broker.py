@@ -9,9 +9,14 @@ from faststream.rabbit import RabbitBroker
 from pamqp.commands import Basic
 from pydantic import SecretStr
 
-from payments.broker import DLQ_EXCHANGE, RabbitEventPublisher, create_broker
-from payments.domain import DEAD_LETTER_QUEUE, NEW_PAYMENTS_QUEUE, Publication, PublicationError
-from payments.settings import BrokerSettings
+from payments.core.domain import (
+    DEAD_LETTER_QUEUE,
+    NEW_PAYMENTS_QUEUE,
+    Publication,
+    PublicationError,
+)
+from payments.core.settings import BrokerSettings
+from payments.infrastructure.broker import DLQ_EXCHANGE, RabbitEventPublisher, create_broker
 
 
 def publication(destination: str = NEW_PAYMENTS_QUEUE) -> Publication:
@@ -65,7 +70,7 @@ async def test_connection_failure_is_sanitized() -> None:
 
 def test_broker_composition_requires_confirms_and_return_errors() -> None:
     """Prevent silently dropping an unroutable message even when RabbitMQ ACKs it."""
-    with patch("payments.broker.RabbitBroker") as constructor:
+    with patch("payments.infrastructure.broker.RabbitBroker") as constructor:
         create_broker(
             BrokerSettings(
                 broker_user="test",

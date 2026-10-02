@@ -10,13 +10,13 @@ from pydantic import SecretStr
 from sqlalchemy import func, update
 from sqlalchemy.exc import IntegrityError
 
-from payments.broker import RabbitEventPublisher, create_broker
-from payments.database import Database
-from payments.domain import NEW_PAYMENTS_QUEUE, Publication, PublicationError
-from payments.models import OutboxEvent
-from payments.outbox import OutboxRelay, publication_backoff
-from payments.settings import BrokerSettings
-from payments.worker import run_relay
+from payments.core.domain import NEW_PAYMENTS_QUEUE, Publication, PublicationError
+from payments.core.settings import BrokerSettings
+from payments.infrastructure.broker import RabbitEventPublisher, create_broker
+from payments.infrastructure.database import Database
+from payments.infrastructure.models import OutboxEvent
+from payments.infrastructure.outbox import OutboxRelay, publication_backoff
+from payments.workers.outbox import run_relay
 
 pytestmark = pytest.mark.integration
 

@@ -7,9 +7,9 @@ from typing import Protocol
 
 from sqlalchemy import func, select
 
-from payments.database import Database
-from payments.domain import Publication, PublicationError
-from payments.models import OutboxEvent
+from payments.core.domain import Publication, PublicationError
+from payments.infrastructure.database import Database
+from payments.infrastructure.models import OutboxEvent
 
 logger = logging.getLogger(__name__)
 

@@ -23,9 +23,9 @@ uv run --locked alembic upgrade head
 Затем запустите каждую команду в отдельном терминале:
 
 ```powershell
-uv run --locked uvicorn payments.api:create_app --factory --host 127.0.0.1 --port 8000
-uv run --locked python -m payments.worker
-uv run --locked python -m payments.consumer
+uv run --locked uvicorn payments.api.app:create_app --factory --host 127.0.0.1 --port 8000
+uv run --locked python -m payments.workers.outbox
+uv run --locked python -m payments.workers.consumer
 uv run --locked python -m examples.receiver --failures 2 --port 8081
 ```
 

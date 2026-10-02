@@ -7,11 +7,11 @@ from contextlib import suppress
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from payments.broker import RabbitEventPublisher, create_broker
-from payments.database import DatabaseUnavailable, create_database
-from payments.logging_config import configure_logging
-from payments.outbox import OutboxRelay
-from payments.settings import BrokerSettings, DatabaseSettings, RelaySettings
+from payments.core.logging import configure_logging
+from payments.core.settings import BrokerSettings, DatabaseSettings, RelaySettings
+from payments.infrastructure.broker import RabbitEventPublisher, create_broker
+from payments.infrastructure.database import DatabaseUnavailable, create_database
+from payments.infrastructure.outbox import OutboxRelay
 
 logger = logging.getLogger(__name__)
 

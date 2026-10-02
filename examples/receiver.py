@@ -10,7 +10,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, ConfigDict
 
-from payments.domain import Currency, PaymentStatus
+from payments.core.domain import Currency, PaymentStatus
 
 
 class Notification(BaseModel):

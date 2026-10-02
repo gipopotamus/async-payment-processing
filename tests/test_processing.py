@@ -12,9 +12,9 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from payments.adapters import EmulatedGateway, HttpWebhookSender, gateway_outcome
-from payments.database import Database
-from payments.domain import (
+from payments.application.processing import PaymentProcessor
+from payments.application.services import WebhookPolicy, request_fingerprint
+from payments.core.domain import (
     DEAD_LETTER_QUEUE,
     Currency,
     GatewayError,
@@ -28,12 +28,12 @@ from payments.domain import (
     WorkflowNotReady,
     WorkflowStage,
 )
-from payments.models import OutboxEvent, Payment
-from payments.processing import PaymentProcessor
-from payments.repository import PaymentRepository
-from payments.schemas import WorkflowEnvelope
-from payments.services import WebhookPolicy, request_fingerprint
-from payments.workflow_repository import WorkflowRepository
+from payments.infrastructure.adapters import EmulatedGateway, HttpWebhookSender, gateway_outcome
+from payments.infrastructure.database import Database
+from payments.infrastructure.models import OutboxEvent, Payment
+from payments.infrastructure.repository import PaymentRepository
+from payments.infrastructure.workflow_repository import WorkflowRepository
+from payments.workers.schemas import WorkflowEnvelope
 
 pytestmark = pytest.mark.integration
 
@@ -441,7 +441,7 @@ async def test_retry_deadline_uses_database_clock(database: Database) -> None:
     """Keep backoff correct when the application's wall clock differs from PostgreSQL."""
     event = await seed_payment(database)
     before = datetime.now(UTC)
-    with patch("payments.processing.datetime") as clock:
+    with patch("payments.application.processing.datetime") as clock:
         clock.now.return_value = before + timedelta(hours=1)
         await PaymentProcessor(
             WorkflowRepository(database), FakeGateway(failures=1), FakeSender()

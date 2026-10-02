@@ -10,11 +10,17 @@ from uuid import UUID
 import httpx
 import pytest
 
-from payments.adapters import EmulatedGateway, HttpWebhookSender, gateway_outcome
-from payments.domain import Currency, PaymentSnapshot, PaymentStatus, WebhookError, WebhookStatus
-from payments.logging_config import configure_logging
-from payments.processing import webhook_event_id
-from payments.services import WebhookPolicy
+from payments.application.processing import webhook_event_id
+from payments.application.services import WebhookPolicy
+from payments.core.domain import (
+    Currency,
+    PaymentSnapshot,
+    PaymentStatus,
+    WebhookError,
+    WebhookStatus,
+)
+from payments.core.logging import configure_logging
+from payments.infrastructure.adapters import EmulatedGateway, HttpWebhookSender, gateway_outcome
 
 
 def terminal_payment() -> PaymentSnapshot:
@@ -120,7 +126,7 @@ async def test_worker_logging_excludes_callback_query_tokens(
                 transport=httpx.MockTransport(lambda request: httpx.Response(204))
             ) as client:
                 await HttpWebhookSender(client, policy).send(payment, UUID(int=1))
-            logging.getLogger("payments.consumer").info("Safe delivery diagnostic")
+            logging.getLogger("payments.workers.consumer").info("Safe delivery diagnostic")
         assert "Safe delivery diagnostic" in caplog.text
         assert "FAKE_PRIVATE_CALLBACK_TOKEN" not in caplog.text
         assert "receiver.test/callback" not in caplog.text

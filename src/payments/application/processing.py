@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import UUID, uuid5, uuid7
 
-from payments.domain import (
+from payments.core.domain import (
     DEAD_LETTER_QUEUE,
     MAX_ATTEMPTS,
     NEW_PAYMENTS_QUEUE,

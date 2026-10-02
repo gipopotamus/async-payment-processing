@@ -7,9 +7,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 
-from payments.api import create_app
-from payments.database import create_database
-from payments.settings import DatabaseSettings, Settings
+from payments.api.app import create_app
+from payments.core.settings import DatabaseSettings, Settings
+from payments.infrastructure.database import create_database
 
 TEST_KEY: Final = "test-only-primary-api-key"
 OTHER_KEY: Final = "test-only-secondary-api-key"

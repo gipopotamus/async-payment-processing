@@ -11,11 +11,11 @@ from faststream.rabbit import TestRabbitBroker
 from faststream.rabbit.message import RabbitMessage
 from pydantic import SecretStr
 
-from payments.broker import create_broker
-from payments.consumer import configure_consumer, handle_message
-from payments.domain import InvalidWorkflow
-from payments.processing import PaymentProcessor
-from payments.settings import BrokerSettings
+from payments.application.processing import PaymentProcessor
+from payments.core.domain import InvalidWorkflow
+from payments.core.settings import BrokerSettings
+from payments.infrastructure.broker import create_broker
+from payments.workers.consumer import configure_consumer, handle_message
 
 
 def message(body: bytes | None = None) -> AsyncMock:

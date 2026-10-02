@@ -5,14 +5,14 @@ from faststream.rabbit import Channel, RabbitBroker, RabbitExchange, RabbitQueue
 from faststream.security import SASLPlaintext
 from pamqp.commands import Basic
 
-from payments.domain import (
+from payments.core.domain import (
     DEAD_LETTER_EXCHANGE,
     DEAD_LETTER_QUEUE,
     NEW_PAYMENTS_QUEUE,
     Publication,
     PublicationError,
 )
-from payments.settings import BrokerSettings
+from payments.core.settings import BrokerSettings
 
 PAYMENTS_QUEUE = RabbitQueue(NEW_PAYMENTS_QUEUE, durable=True, timeout=5)
 DLQ_QUEUE = RabbitQueue(DEAD_LETTER_QUEUE, durable=True, timeout=5)

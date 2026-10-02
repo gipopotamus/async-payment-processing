@@ -59,7 +59,7 @@ services:
 
   outbox-worker:
     <<: *application
-    command: ["python", "-m", "payments.worker"]
+    command: ["python", "-m", "payments.workers.outbox"]
     environment:
       <<: *application-environment
       PAYMENTS_BROKER_HOST: rabbitmq
@@ -78,7 +78,7 @@ services:
 
   consumer:
     <<: *application
-    command: ["python", "-m", "payments.consumer"]
+    command: ["python", "-m", "payments.workers.consumer"]
     environment:
       <<: *application-environment
       PAYMENTS_BROKER_HOST: rabbitmq

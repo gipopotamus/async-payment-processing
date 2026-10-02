@@ -12,10 +12,10 @@ from sqlalchemy import func, inspect, select
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 
-from payments.api import get_session
-from payments.database import Database
-from payments.domain import Currency, PaymentStatus, WebhookStatus
-from payments.models import OutboxEvent, Payment
+from payments.api.app import get_session
+from payments.core.domain import Currency, PaymentStatus, WebhookStatus
+from payments.infrastructure.database import Database
+from payments.infrastructure.models import OutboxEvent, Payment
 
 pytestmark = pytest.mark.integration
 

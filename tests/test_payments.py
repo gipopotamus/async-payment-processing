@@ -11,11 +11,11 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 from sqlalchemy import func, select, update
 
-from payments.api import create_app
-from payments.database import Database
-from payments.domain import JsonValue, PaymentStatus
-from payments.models import OutboxEvent, Payment
-from payments.settings import Settings
+from payments.api.app import create_app
+from payments.core.domain import JsonValue, PaymentStatus
+from payments.core.settings import Settings
+from payments.infrastructure.database import Database
+from payments.infrastructure.models import OutboxEvent, Payment
 
 pytestmark = pytest.mark.integration
 TEST_KEY: Final = "test-only-payment-api-key"
