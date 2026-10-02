@@ -1,7 +1,7 @@
 """Shared payment vocabulary and limits, independent of transport and storage."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from typing import Final
@@ -40,6 +40,13 @@ class WebhookStatus(StrEnum):
     PENDING = "pending"
     DELIVERED = "delivered"
     FAILED = "failed"
+
+
+class WorkflowStage(StrEnum):
+    """Separate gateway processing from delivery of its terminal result."""
+
+    PROCESSING = "processing"
+    WEBHOOK = "webhook"
 
 
 @dataclass(frozen=True)
@@ -98,3 +105,56 @@ class Publication:
 
 class PublicationError(Exception):
     """Signal a retryable publication failure without embedding sensitive details."""
+
+
+@dataclass(frozen=True)
+class WorkflowEvent:
+    """Identify a persisted stage and expected attempt, independently of AMQP."""
+
+    event_id: UUID
+    payment_id: UUID
+    stage: WorkflowStage
+    attempt: int
+
+    def payload(self) -> dict[str, JsonValue]:
+        """Return the canonical JSON contract used by the outbox and consumer."""
+        return {
+            "event_id": str(self.event_id),
+            "payment_id": str(self.payment_id),
+            "stage": self.stage.value,
+            "attempt": self.attempt,
+        }
+
+
+@dataclass(frozen=True)
+class ScheduledPublication(Publication):
+    """Add durable availability to an event intent produced in a payment transaction."""
+
+    delay: timedelta
+
+
+@dataclass
+class PaymentWork:
+    """Carry locked state and new publication intents without exposing ORM entities."""
+
+    payment: PaymentSnapshot
+    processing_attempts: int
+    processing_error: str | None
+    webhook_error: str | None
+    events: list[ScheduledPublication] = field(default_factory=list)
+
+
+class GatewayError(Exception):
+    """Signal a technical gateway failure; business declines are terminal results."""
+
+
+class WebhookError(Exception):
+    """Signal a failed callback attempt without exposing URL credentials or bodies."""
+
+
+class InvalidWorkflow(Exception):
+    """Signal a message that does not match a stored publication or valid payment stage."""
+
+
+class WorkflowNotReady(Exception):
+    """Keep an early message recoverable until its durable due date arrives."""

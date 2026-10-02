@@ -11,6 +11,8 @@ from payments.domain import (
     PAYMENT_CREATED_EVENT,
     NewPayment,
     PaymentSnapshot,
+    WorkflowEvent,
+    WorkflowStage,
 )
 from payments.models import OutboxEvent, Payment
 
@@ -82,12 +84,9 @@ class PaymentRepository:
                         payment_id=payment.id,
                         event_type=PAYMENT_CREATED_EVENT,
                         destination=NEW_PAYMENTS_QUEUE,
-                        payload={
-                            "event_id": str(event_id),
-                            "payment_id": str(payment.id),
-                            "stage": "processing",
-                            "attempt": 1,
-                        },
+                        payload=WorkflowEvent(
+                            event_id, payment.id, WorkflowStage.PROCESSING, 1
+                        ).payload(),
                     )
                 )
             return payment_snapshot(payment)

@@ -5,7 +5,7 @@ emulated gateway, and deliver their results via webhook.
 
 ## Current status
 
-Milestones 1-4 provide a runnable FastAPI foundation, configuration and database DI,
+Milestones 1-5 provide a runnable FastAPI foundation, configuration and database DI,
 API-key authentication, SQLAlchemy models, an Alembic migration, and PostgreSQL
 integration checks, plus payment creation and lookup with concurrent idempotency.
 Dockerfile and Compose configuration are prepared; container
@@ -13,7 +13,9 @@ build and startup have not been verified because development currently runs loca
 The separate outbox worker publishes durable events through FastStream with explicit
 RabbitMQ confirmations. Database recovery and AMQP adapter contract checks pass
 locally; delivery to a running RabbitMQ server has not yet been verified.
-The payment consumer is the next milestone. Payments remain pending until it is implemented.
+The separate consumer now implements the stable gateway emulator, webhook delivery,
+independent retries, and DLQ intents. Workflow and real loopback HTTP checks pass;
+end-to-end delivery through a running RabbitMQ server is still unverified.
 
 ## Development
 
@@ -58,8 +60,9 @@ Set `PAYMENTS_WEBHOOK_ALLOWED_ORIGINS` in `.env` to a JSON array of exact
 scheme/host/port origins. The example allows `["http://127.0.0.1:8081"]`; the empty
 default rejects every callback. Paths and queries belong in each request's URL,
 not in the configured origins. URLs containing credentials or fragments are rejected.
-This is admission validation; the delivery adapter and deployment egress controls
-will provide the remaining protections when webhook delivery is implemented.
+The delivery adapter rechecks this policy on every attempt, disables redirects,
+and ignores environment proxy/netrc settings. Deployment must restrict egress
+to prevent DNS-based SSRF bypasses.
 
 Use a decimal **string** for `amount`; JSON numbers are rejected to avoid binary
 float precision loss. Currency must be `RUB`, `USD`, or `EUR`, and amount must be
@@ -137,7 +140,54 @@ SIGTERM requests a clean stop after the current bounded attempt on Unix.
 A crash after RabbitMQ accepts a message but before the database commit may send
 the same event again. Cancellation rolls back the publication transaction, leaving
 the intent recoverable. Consumers must deduplicate by event/workflow identity;
-the next milestone implements that behavior.
+the consumer implements that behavior with persisted stage counters and state.
+
+## Local payment consumer
+
+With PostgreSQL migrated and RabbitMQ configured, run a third terminal alongside
+the API and outbox worker:
+
+```powershell
+uv run --locked python -m payments.consumer
+```
+
+The process has one `payments.new` subscriber with prefetch one and manual ACKs.
+It validates raw envelopes against their persisted outbox identity and due date,
+then locks the payment and processes one stage in a transaction. Application rules
+depend on narrow transaction/gateway/webhook protocols, with no FastAPI, SQLAlchemy,
+or RabbitMQ imports. The PostgreSQL adapter commits state and new events together.
+Locks are held during bounded external operations, matching the relay's documented
+throughput tradeoff. Keep outbox history while broker redelivery is possible.
+
+The gateway hashes the payment ID into a stable 90% success / 10% business-decline
+partition and a 2-5-second delay. Repeating an ID after restart keeps the same result.
+A business decline is immediately terminal `failed` and still triggers a webhook.
+Technical gateway faults retry up to three total attempts; on exhaustion the
+payment becomes `failed`, a processing DLQ intent is saved, and its result is notified.
+
+Webhook attempts are independent: failures schedule retries after 2 and 4 seconds,
+with three attempts total. Exhaustion sets `webhook_status=failed` and saves one
+delivery DLQ intent while preserving the payment's terminal status. Replaying an
+already counted or completed stage creates no new attempt or retry chain.
+Gateway/HTTP deadlines default to 10/5 seconds, configured with
+`PAYMENTS_PROCESSING_TIMEOUT` and `PAYMENTS_WEBHOOK_TIMEOUT`.
+
+Webhook POST sends `event_id`, `payment_id`, `status`, decimal-string `amount`,
+`currency`, `created_at`, and `processed_at`. Its `Idempotency-Key` header equals
+`event_id`, derived deterministically from the payment ID and `payment.result`.
+This ID stays stable across retry messages and uncertain HTTP outcomes. The receiver
+must deduplicate it. Only 2xx counts as delivery; redirects and other statuses fail.
+The client is reused, responses are streamed without loading their bodies, and the
+incoming API key is never forwarded.
+
+The consumer ACKs after a committed result, retry, DLQ intent, or harmless duplicate.
+On database errors, early messages, or unknown internal failures it waits
+`PAYMENTS_CONSUMER_REQUEUE_DELAY` (default one second), then NACKs with requeue.
+Cancellation leaves the message recoverable through connection shutdown.
+Malformed JSON, invalid envelopes, and messages over 4 KiB produce a deduplicated
+validation DLQ intent. Only hashes and sanitized reasons are retained, with a known
+payment ID where available; raw bodies and credentials are excluded. Raw decoding
+ensures FastStream cannot discard bad JSON before this intent is persisted.
 
 ## Quality checks
 
@@ -171,6 +221,13 @@ publication timeout, and the confirmation/failed-commit duplicate window. They a
 exercise the actual AMQP client's connection failure against an unavailable local
 port. Positive ACKs and durable routing flags are tested through mocked adapter
 contracts; these do not prove durability or delivery on a real RabbitMQ server.
+Workflow checks cover concurrent duplicates, business declines, technical retries,
+webhook retry/exhaustion, early or fabricated events, cancellation, and uncertain
+HTTP acceptance. A loopback HTTP server fails twice then succeeds with the actual
+gateway delay; the result payload and deduplication ID remain stable. FastStream's
+in-memory test broker verifies raw invalid JSON reaches the handler, while transport
+spies verify acknowledgement order. These checks still require live-broker acceptance
+in milestone 6 to establish AMQP recovery and routing in a running environment.
 `uv run --locked alembic check` checks an application's migrated schema for drift.
 
 ## Persistence
@@ -179,8 +236,9 @@ contracts; these do not prove durability or delivery on a real RabbitMQ server.
 unique idempotency keys, normalized request hashes, UTC timestamps, and independent
 processing/webhook attempt counters. `outbox` retains publication intents and uses
 a partial index on unpublished events ordered by `available_at` and ID. Foreign
-keys prevent events from silently losing their linked payments. IDs use Python
-3.14's UUIDv7 generator. Frozen migration definitions do not import evolving models.
+keys prevent events from silently losing their linked payments. New payment/workflow
+IDs use Python 3.14's UUIDv7 generator; stable webhook and invalid-message identities
+use deterministic UUIDv5. Frozen migration definitions do not import evolving models.
 
 The API owns its database engine through `lifespan`, while an explicitly injected
 engine remains owned by its caller. Request-scoped sessions close and roll back
@@ -198,9 +256,8 @@ When Docker is available, the intended command is:
 docker compose up --build -d
 ```
 
-The current file includes PostgreSQL, RabbitMQ, one-shot migrations, the API, and
-the outbox worker. The consumer will be added with its implementation in milestone
-5. Application containers run without root; services publish ports on loopback
+The current file includes PostgreSQL, RabbitMQ, one-shot migrations, the API,
+outbox worker, and consumer. Application containers run without root; services publish ports on loopback
 only. PostgreSQL and RabbitMQ use named volumes and healthchecks; the API waits for
 successful migrations but does not depend on broker readiness. The PostgreSQL 18
 volume mounts at `/var/lib/postgresql`, matching the official image's data layout.
@@ -208,6 +265,9 @@ RabbitMQ has a stable hostname so its persisted node identity survives recreatio
 The outbox worker also starts independently of broker readiness, retaining failed
 publication intents for eventual recovery. Broker settings are shared between the
 RabbitMQ service and the worker so their credentials and virtual host stay consistent.
+The consumer waits for broker health and successful migrations at initial startup.
+Callback URLs must be reachable from its container; a loopback development receiver
+on the host requires a different destination/origin than the local example.
 
 ## Commit sequence
 

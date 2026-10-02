@@ -76,6 +76,29 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  consumer:
+    <<: *application
+    command: ["python", "-m", "payments.consumer"]
+    environment:
+      <<: *application-environment
+      PAYMENTS_BROKER_HOST: rabbitmq
+      PAYMENTS_BROKER_PORT: "5672"
+      PAYMENTS_BROKER_USER: ${PAYMENTS_BROKER_USER:-payments}
+      PAYMENTS_BROKER_PASSWORD: ${PAYMENTS_BROKER_PASSWORD:?Set the broker password in .env}
+      PAYMENTS_BROKER_VHOST: ${PAYMENTS_BROKER_VHOST:-/}
+      PAYMENTS_WEBHOOK_ALLOWED_ORIGINS: ${PAYMENTS_WEBHOOK_ALLOWED_ORIGINS:-[]}
+      PAYMENTS_PROCESSING_TIMEOUT: ${PAYMENTS_PROCESSING_TIMEOUT:-10}
+      PAYMENTS_WEBHOOK_TIMEOUT: ${PAYMENTS_WEBHOOK_TIMEOUT:-5}
+      PAYMENTS_CONSUMER_REQUEUE_DELAY: ${PAYMENTS_CONSUMER_REQUEUE_DELAY:-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   api:
     <<: *application
     environment:

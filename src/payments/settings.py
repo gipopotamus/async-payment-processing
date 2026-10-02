@@ -19,7 +19,13 @@ class EnvironmentSettings(BaseSettings):
     )
 
 
-class Settings(EnvironmentSettings):
+class WebhookSettings(EnvironmentSettings):
+    """Configure callback admission independently of the API credential."""
+
+    webhook_allowed_origins: frozenset[str] = frozenset()
+
+
+class Settings(WebhookSettings):
     """Configure the API without requiring credentials for other processes.
 
     Attributes:
@@ -28,7 +34,6 @@ class Settings(EnvironmentSettings):
     """
 
     api_key: SecretStr = Field(min_length=16)
-    webhook_allowed_origins: frozenset[str] = frozenset()
 
 
 class DatabaseSettings(EnvironmentSettings):
@@ -84,3 +89,11 @@ class RelaySettings(EnvironmentSettings):
 
     relay_publish_timeout: float = Field(default=5, gt=0, le=60)
     relay_poll_interval: float = Field(default=1, gt=0, le=60)
+
+
+class ConsumerSettings(EnvironmentSettings):
+    """Bound external operations and back off redelivery during storage outages."""
+
+    processing_timeout: float = Field(default=10, gt=0, le=60)
+    webhook_timeout: float = Field(default=5, gt=0, le=60)
+    consumer_requeue_delay: float = Field(default=1, gt=0, le=60)

@@ -1,9 +1,10 @@
 # Implementation contract
 
-This document records the implementation contract. Milestones 1-4 implement the
+This document records the implementation contract. Milestones 1-5 implement the
 foundation, database lifecycle, models, migrations, and payment creation/lookup
-described in README, plus a separately executable outbox relay. Broker consumers
-are still planned. Live RabbitMQ delivery and container startup remain unverified.
+described in README, plus separately executable outbox and consumer processes.
+Workflow/loopback HTTP checks pass. Live RabbitMQ delivery and container startup
+remain unverified.
 
 ## Responsibilities and dependency injection
 
@@ -90,6 +91,9 @@ The gateway emulates a 2-5 second delay and a 90% success / 10% business-failure
 distribution. A business failure is a terminal payment outcome, followed by a
 webhook. Repeating the operation with payment_id must return the same gateway
 outcome, including across process restarts; define the emulator accordingly.
+The implemented emulator hashes the UUID to choose both the outcome and delay;
+it has no random process state. A technical failure exhausted on attempt three
+records a failed payment, processing DLQ intent, and a webhook intent atomically.
 
 Three attempts means three total, with two exponential delays (initially 2s and
 4s). Count processing technical failures separately from webhook delivery failures.
@@ -97,6 +101,12 @@ Persist counters and workflow state, and create each scheduled retry event in th
 same transaction. Include the workflow stage and expected attempt in retry
 messages so duplicates cannot create independent retry chains. Broker redelivery
 alone is not a business-attempt counter.
+The consumer compares the envelope with its persisted outbox source and due date
+before applying stage rules under a payment row lock. Counted/completed stages
+return without external calls or new events. The workflow use case manipulates
+an ORM-independent unit of work; the repository commits its state and event intents.
+Retry intents carry relative delays, anchored to PostgreSQL's clock at insertion,
+so due dates do not depend on the application's wall-clock offset.
 
 Use available_at in the existing outbox to schedule retries. A consumer ACKs only
 after it has durably saved success, a scheduled retry, or a DLQ publication intent.
@@ -104,6 +114,11 @@ Use a separate direct exchange/route for payments.dlq; the relay publishes DLQ
 messages with the same confirmation guarantees as other outbox records. Handle
 malformed broker payloads explicitly before application validation can discard
 them. If the database is unavailable, leave the message recoverable and back off.
+One raw-byte subscriber with prefetch one and manual ACKs validates envelopes in
+the handler. Malformed or oversized envelopes are hashed into deterministic,
+deduplicated validation DLQ intents. Failed DLQ persistence causes NACK/requeue,
+never an ACK that would lose the invalid message. Early or unknown internal failures
+also back off and requeue without consuming business-attempt counts.
 
 On exhausted delivery attempts, retain the payment result and record delivery
 failure. DLQ payloads contain an event ID, payment ID where available, failed
@@ -115,6 +130,10 @@ Delivery is at-least-once. If a receiver accepts a webhook but the consumer dies
 before persisting success, delivery may repeat. Send a stable webhook event_id so
 the receiver can deduplicate it. Exactly-once effects require cooperation from the
 external receiver or payment gateway.
+The webhook ID is UUIDv5(payment_id, "payment.result"); every retry uses that ID
+in both its body and Idempotency-Key header. HTTP accepts only 2xx, disables
+redirects, and streams response headers without loading untrusted response bodies.
+The process shares one client with trust_env=False and total operation deadlines.
 
 Reuse one async HTTP client per process, set timeouts, and disable redirects.
 Validate destinations against an explicit webhook host/port allowlist; use a
