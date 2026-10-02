@@ -1,0 +1,63 @@
+name: Quality and integration checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-bookworm
+        env:
+          POSTGRES_USER: payments
+          POSTGRES_PASSWORD: local-development-db-password
+          POSTGRES_DB: payments_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U payments -d payments_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      rabbitmq:
+        image: rabbitmq:4.3.6-management
+        env:
+          RABBITMQ_DEFAULT_USER: payments
+          RABBITMQ_DEFAULT_PASS: local-development-broker-password
+        ports: [5672:5672, 15672:15672]
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PAYMENTS_DATABASE_HOST: 127.0.0.1
+      PAYMENTS_DATABASE_PORT: "5432"
+      PAYMENTS_DATABASE_USER: payments
+      PAYMENTS_DATABASE_PASSWORD: local-development-db-password
+      PAYMENTS_DATABASE_NAME: payments_test
+      PAYMENTS_TEST_DATABASE_URL: postgresql+asyncpg://payments:local-development-db-password@127.0.0.1:5432/payments_test
+      PAYMENTS_BROKER_HOST: 127.0.0.1
+      PAYMENTS_BROKER_PORT: "5672"
+      PAYMENTS_BROKER_USER: payments
+      PAYMENTS_BROKER_PASSWORD: local-development-broker-password
+      PAYMENTS_TEST_BROKER_MANAGEMENT_URL: http://127.0.0.1:15672
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.21"
+          python-version: "3.14.7"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
+      - run: uv run --locked mypy
+      - run: uv run --locked alembic upgrade head
+      - run: uv run --locked alembic check
+      - run: uv run --locked pytest

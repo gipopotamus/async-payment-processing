@@ -5,17 +5,16 @@ emulated gateway, and deliver their results via webhook.
 
 ## Current status
 
-Milestones 1-5 provide a runnable FastAPI foundation, configuration and database DI,
-API-key authentication, SQLAlchemy models, an Alembic migration, and PostgreSQL
-integration checks, plus payment creation and lookup with concurrent idempotency.
-Dockerfile and Compose configuration are prepared; container
-build and startup have not been verified because development currently runs locally.
-The separate outbox worker publishes durable events through FastStream with explicit
-RabbitMQ confirmations. Database recovery and AMQP adapter contract checks pass
-locally; delivery to a running RabbitMQ server has not yet been verified.
-The separate consumer now implements the stable gateway emulator, webhook delivery,
-independent retries, and DLQ intents. Workflow and real loopback HTTP checks pass;
-end-to-end delivery through a running RabbitMQ server is still unverified.
+All six milestones are implemented: authenticated FastAPI, PostgreSQL persistence,
+concurrent idempotency, a separate outbox relay, and a separate payment consumer
+with gateway processing, webhook retries, and DLQ delivery. DI keeps application
+rules independent of transports and database adapters.
+
+Local checks pass with actual PostgreSQL, RabbitMQ, and a loopback HTTP receiver.
+Four-process acceptance also verifies broker outage recovery, consumer restart,
+durable messages after a full broker restart, and exhausted webhook delivery.
+See [acceptance evidence and boundaries](docs/acceptance.md). GitHub Actions is
+prepared; its remote execution and Docker image/Compose startup remain unverified.
 
 ## Development
 
@@ -189,6 +188,36 @@ validation DLQ intent. Only hashes and sanitized reasons are retained, with a kn
 payment ID where available; raw bodies and credentials are excluded. Raw decoding
 ensures FastStream cannot discard bad JSON before this intent is persisted.
 
+## Runnable webhook demo
+
+With the API, relay, and consumer running in their three terminals, start the
+receiver from the repository root in a fourth terminal:
+
+```powershell
+uv run --locked python -m examples.receiver --failures 2 --port 8081
+```
+
+Send the payment from the Payment API example above, then inspect both sides:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/v1/payments/$($payment.payment_id)" `
+    -Headers $headers
+Invoke-RestMethod http://127.0.0.1:8081/receipts
+```
+
+After gateway processing and two scheduled webhook retries, expect a terminal
+payment status, `webhook_status=delivered`, and `webhook_attempts=3`. The receiver
+reports one accepted result with three attempts. Its gateway result can be either
+`succeeded` or a business decline `failed`; both are delivered to the callback.
+
+For DLQ delivery, stop only the demo receiver and restart it with `--failures 3`.
+Submit a **new** payment with a new idempotency key. Expect `webhook_status=failed`,
+three attempts, and a message in `payments.dlq` whose stage is `webhook`. The terminal
+payment result stays unchanged. The receiver rejects changed bodies for the same
+event ID with `409` and accepts identical replays without adding another result.
+Its state is in memory and resets on restart. This unauthenticated demo binds only
+to loopback; it is not a production callback service.
+
 ## Quality checks
 
 ```powershell
@@ -220,15 +249,32 @@ restart recovery through fresh sessions, competing row locks, cancellation,
 publication timeout, and the confirmation/failed-commit duplicate window. They also
 exercise the actual AMQP client's connection failure against an unavailable local
 port. Positive ACKs and durable routing flags are tested through mocked adapter
-contracts; these do not prove durability or delivery on a real RabbitMQ server.
+contracts. Optional live-broker tests additionally verify actual confirmations,
+durable routing, returned publications, and duplicate delivery after commit failure.
 Workflow checks cover concurrent duplicates, business declines, technical retries,
 webhook retry/exhaustion, early or fabricated events, cancellation, and uncertain
 HTTP acceptance. A loopback HTTP server fails twice then succeeds with the actual
 gateway delay; the result payload and deduplication ID remain stable. FastStream's
 in-memory test broker verifies raw invalid JSON reaches the handler, while transport
-spies verify acknowledgement order. These checks still require live-broker acceptance
-in milestone 6 to establish AMQP recovery and routing in a running environment.
+spies verify acknowledgement order. The live acceptance pipeline also connects the
+API, relay, consumer, and actual loopback HTTP receiver through RabbitMQ.
 `uv run --locked alembic check` checks an application's migrated schema for drift.
+
+To include actual RabbitMQ acceptance, enable its management plugin and use an
+isolated development server. Set the broker credentials/port in `.env`, then:
+
+```powershell
+$env:PAYMENTS_TEST_BROKER_MANAGEMENT_URL = 'http://127.0.0.1:15673'
+uv run --locked pytest
+```
+
+This also requires the explicit PostgreSQL test URL above. Live tests create and
+delete only their own random virtual hosts; the broker user must have management
+permission to create virtual hosts and grant itself access. Without the management
+URL these tests are explicitly skipped. CI enables both services and runs the full
+suite, lint, formatting, types, migration upgrade, and schema-drift check. Actions
+are pinned to commit SHAs and dependencies to `uv.lock`. Do not run disruptive broker
+restart checks against shared infrastructure; those are separate local acceptance.
 
 ## Persistence
 

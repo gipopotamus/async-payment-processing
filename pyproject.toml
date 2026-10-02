@@ -34,10 +34,14 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-config --strict-markers"
-markers = ["integration: requires a disposable PostgreSQL test database"]
+markers = [
+    "integration: requires a disposable PostgreSQL test database",
+    "broker_integration: requires explicit RabbitMQ management access and disposable vhosts",
+]
 
 [tool.ruff]
 target-version = "py314"
@@ -52,7 +56,7 @@ convention = "google"
 
 [tool.mypy]
 python_version = "3.14"
-files = ["src", "tests", "migrations"]
+files = ["src", "tests", "migrations", "examples"]
 strict = true
 plugins = ["pydantic.mypy"]
 
