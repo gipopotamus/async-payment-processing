@@ -33,10 +33,11 @@ services:
     image: rabbitmq:4.3.6-management
     hostname: payments-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-payments}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set the broker password in .env}
+      RABBITMQ_DEFAULT_USER: ${PAYMENTS_BROKER_USER:-payments}
+      RABBITMQ_DEFAULT_PASS: ${PAYMENTS_BROKER_PASSWORD:?Set the broker password in .env}
+      RABBITMQ_DEFAULT_VHOST: ${PAYMENTS_BROKER_VHOST:-/}
     ports:
-      - "127.0.0.1:${RABBITMQ_AMQP_PORT:-5673}:5672"
+      - "127.0.0.1:${PAYMENTS_BROKER_PORT:-5673}:5672"
       - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -55,6 +56,25 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
+
+  outbox-worker:
+    <<: *application
+    command: ["python", "-m", "payments.worker"]
+    environment:
+      <<: *application-environment
+      PAYMENTS_BROKER_HOST: rabbitmq
+      PAYMENTS_BROKER_PORT: "5672"
+      PAYMENTS_BROKER_USER: ${PAYMENTS_BROKER_USER:-payments}
+      PAYMENTS_BROKER_PASSWORD: ${PAYMENTS_BROKER_PASSWORD:?Set the broker password in .env}
+      PAYMENTS_BROKER_VHOST: ${PAYMENTS_BROKER_VHOST:-/}
+      PAYMENTS_RELAY_PUBLISH_TIMEOUT: ${PAYMENTS_RELAY_PUBLISH_TIMEOUT:-5}
+      PAYMENTS_RELAY_POLL_INTERVAL: ${PAYMENTS_RELAY_POLL_INTERVAL:-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   api:
     <<: *application

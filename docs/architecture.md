@@ -1,8 +1,9 @@
 # Implementation contract
 
-This document records the implementation contract. Milestones 1-3 implement the
+This document records the implementation contract. Milestones 1-4 implement the
 foundation, database lifecycle, models, migrations, and payment creation/lookup
-described in README. Outbox publication and broker consumers are still planned.
+described in README, plus a separately executable outbox relay. Broker consumers
+are still planned. Live RabbitMQ delivery and container startup remain unverified.
 
 ## Responsibilities and dependency injection
 
@@ -64,6 +65,20 @@ Creation currently records `payment.created` routed to `payments.new`, with payl
 stable across publication retries.
 Retry publication failures with capped backoff. Broker unavailability does not
 consume the webhook's business retry budget.
+
+The executable relay locks one due event with `FOR UPDATE SKIP LOCKED` and keeps
+the transaction open through a bounded publisher call. Only positive ACK marks
+`published_at`. Publication failures update `available_at` and `publish_attempts`
+in the transaction, with 2/4/8/16/32/60-second backoff and no total retry limit.
+Cancellation or a failed commit rolls back these changes; the same event ID may
+therefore be sent again. Idle/database-failure polling is bounded and interruptible.
+Holding a row lock during a network call is a documented throughput tradeoff;
+leased claims with fencing can replace it if higher throughput becomes necessary.
+
+The RabbitMQ adapter uses persistent messages, durable queues, mandatory routing,
+and a confirm-enabled channel with `on_return_raises`. DLQ uses a separate durable
+direct exchange `payments.dead-letter`, bound to `payments.dlq`. Broker credentials
+are composed from separate settings rather than interpolated into URL strings.
 
 ## Processing, retries, and DLQ
 

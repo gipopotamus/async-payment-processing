@@ -12,6 +12,8 @@ AMOUNT_SCALE: Final = 2
 MAX_ATTEMPTS: Final = 3
 NEW_PAYMENTS_QUEUE: Final = "payments.new"
 PAYMENT_CREATED_EVENT: Final = "payment.created"
+DEAD_LETTER_QUEUE: Final = "payments.dlq"
+DEAD_LETTER_EXCHANGE: Final = "payments.dead-letter"
 
 type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
 
@@ -81,3 +83,18 @@ class PaymentNotFound(Exception):
 
 class InvalidWebhook(Exception):
     """Signal that a callback destination is outside the configured policy."""
+
+
+@dataclass(frozen=True)
+class Publication:
+    """Carry a stable outbox identity and payload into the broker adapter."""
+
+    event_id: UUID
+    payment_id: UUID | None
+    event_type: str
+    destination: str
+    payload: dict[str, JsonValue]
+
+
+class PublicationError(Exception):
+    """Signal a retryable publication failure without embedding sensitive details."""

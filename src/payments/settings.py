@@ -59,3 +59,28 @@ class DatabaseSettings(EnvironmentSettings):
             port=self.database_port,
             database=self.database_name,
         )
+
+
+class BrokerSettings(EnvironmentSettings):
+    """Configure AMQP independently of API authentication.
+
+    Attributes:
+        broker_host: Hostname reachable from this worker.
+        broker_port: AMQP port, matching the development Compose mapping.
+        broker_user: Required broker login.
+        broker_password: Required password, hidden from representations.
+        broker_vhost: RabbitMQ virtual host.
+    """
+
+    broker_host: str = Field(default="127.0.0.1", min_length=1)
+    broker_port: int = Field(default=5673, ge=1, le=65535)
+    broker_user: str = Field(min_length=1)
+    broker_password: SecretStr = Field(min_length=1)
+    broker_vhost: str = "/"
+
+
+class RelaySettings(EnvironmentSettings):
+    """Bound publication locks and polling without limiting eventual recovery."""
+
+    relay_publish_timeout: float = Field(default=5, gt=0, le=60)
+    relay_poll_interval: float = Field(default=1, gt=0, le=60)

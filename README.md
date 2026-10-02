@@ -5,13 +5,15 @@ emulated gateway, and deliver their results via webhook.
 
 ## Current status
 
-Milestones 1-3 provide a runnable FastAPI foundation, configuration and database DI,
+Milestones 1-4 provide a runnable FastAPI foundation, configuration and database DI,
 API-key authentication, SQLAlchemy models, an Alembic migration, and PostgreSQL
 integration checks, plus payment creation and lookup with concurrent idempotency.
 Dockerfile and Compose configuration are prepared; container
 build and startup have not been verified because development currently runs locally.
-Event publication and the payment consumer are upcoming milestones. Accepted payments
-currently stay pending, with their initial event retained in the database outbox.
+The separate outbox worker publishes durable events through FastStream with explicit
+RabbitMQ confirmations. Database recovery and AMQP adapter contract checks pass
+locally; delivery to a running RabbitMQ server has not yet been verified.
+The payment consumer is the next milestone. Payments remain pending until it is implemented.
 
 ## Development
 
@@ -98,6 +100,45 @@ An absent ID returns `404`, an invalid UUID returns `422`, and missing/invalid A
 credentials return `401`. Storage errors return a sanitized `503` with `Retry-After: 1`;
 retry POST using the original idempotency key when the outcome is uncertain.
 
+## Local outbox worker
+
+Configure a local RabbitMQ server and its virtual host with `PAYMENTS_BROKER_*`
+settings from `.env.example`. The example uses port 5673 to match Compose's host
+mapping; change it to 5672 if your local server uses the standard port. Broker
+credentials are required; the worker does not require an API key.
+
+Run it in a terminal separate from the API:
+
+```powershell
+uv run --locked python -m payments.worker
+```
+
+The worker lazily connects to RabbitMQ, declares durable `payments.new` and
+`payments.dlq` queues, and binds the latter to the durable direct exchange
+`payments.dead-letter`. Publications are persistent and mandatory. The AMQP
+channel requires publisher confirms and raises on returned, unroutable messages;
+only a positive ACK lets the relay mark the event published. The outbox event ID
+becomes the message ID, and the payment ID becomes the correlation ID when present.
+
+Each due event is locked with `FOR UPDATE SKIP LOCKED` in its own transaction.
+The lock remains held during a bounded publish call; the default timeout is five
+seconds. This keeps recovery simple for the assignment, with one event per relay
+at a time. Leased claims with fencing are the upgrade path if throughput requires
+shorter transactions. Multiple relay instances skip events already locked by another.
+
+Broker failures retain the intent and schedule retries after 2, 4, 8, 16, 32,
+then 60 seconds. Publication retries have no total limit and do not consume the
+payment or webhook attempt budget. Errors contain only sanitized exception types.
+Due dates and counts survive restarts. Idle polling defaults to one second; adjust
+`PAYMENTS_RELAY_PUBLISH_TIMEOUT` and `PAYMENTS_RELAY_POLL_INTERVAL` if needed.
+Database failures back off instead of spinning. Ctrl+C closes resources on Windows;
+SIGTERM requests a clean stop after the current bounded attempt on Unix.
+
+A crash after RabbitMQ accepts a message but before the database commit may send
+the same event again. Cancellation rolls back the publication transaction, leaving
+the intent recoverable. Consumers must deduplicate by event/workflow identity;
+the next milestone implements that behavior.
+
 ## Quality checks
 
 ```powershell
@@ -124,6 +165,12 @@ API checks additionally cover concurrent equivalent/conflicting creation, normal
 replays, current-status responses, exact webhook-origin admission, invalid inputs,
 and rollback/recovery when outbox insertion fails. They use actual PostgreSQL
 transactions and migrations; they do not require a running RabbitMQ server.
+Relay checks cover due-event ordering, retries beyond the three business attempts,
+restart recovery through fresh sessions, competing row locks, cancellation,
+publication timeout, and the confirmation/failed-commit duplicate window. They also
+exercise the actual AMQP client's connection failure against an unavailable local
+port. Positive ACKs and durable routing flags are tested through mocked adapter
+contracts; these do not prove durability or delivery on a real RabbitMQ server.
 `uv run --locked alembic check` checks an application's migrated schema for drift.
 
 ## Persistence
@@ -151,13 +198,16 @@ When Docker is available, the intended command is:
 docker compose up --build -d
 ```
 
-The current file includes PostgreSQL, RabbitMQ, one-shot migrations, and the API.
-Worker services will be added with their executable implementations in milestones
-4-5. Application containers run without root; services publish ports on loopback
+The current file includes PostgreSQL, RabbitMQ, one-shot migrations, the API, and
+the outbox worker. The consumer will be added with its implementation in milestone
+5. Application containers run without root; services publish ports on loopback
 only. PostgreSQL and RabbitMQ use named volumes and healthchecks; the API waits for
 successful migrations but does not depend on broker readiness. The PostgreSQL 18
 volume mounts at `/var/lib/postgresql`, matching the official image's data layout.
 RabbitMQ has a stable hostname so its persisted node identity survives recreation.
+The outbox worker also starts independently of broker readiness, retaining failed
+publication intents for eventual recovery. Broker settings are shared between the
+RabbitMQ service and the worker so their credentials and virtual host stay consistent.
 
 ## Commit sequence
 
