@@ -49,7 +49,7 @@ class OutboxRelay:
         Database errors and cancellation propagate after transaction rollback.
         Publication failures are retained with sanitized error types and a due date.
         """
-        # ponytail: one bounded network-held row lock; leased claims if throughput requires it.
+        # Hold one row lock during the bounded publish; use leased claims for higher throughput.
         async with self._database.session() as session, session.begin():
             event = await session.scalar(
                 select(OutboxEvent)

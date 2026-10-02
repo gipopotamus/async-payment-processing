@@ -48,7 +48,7 @@ def create_receiver(failures: int = 2) -> FastAPI:
     """Fail the first N attempts per event, then accept and deduplicate identical replays."""
     if failures < 0:
         raise ValueError("Failures must be nonnegative")
-    # ponytail: in-memory demo deduplication; durable receiver storage for production.
+    # Demo receipts live in memory; production receivers need durable deduplication.
     state = ReceiverState()
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 

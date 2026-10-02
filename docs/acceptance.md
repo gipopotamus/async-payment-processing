@@ -50,12 +50,11 @@ failure windows. Preserve its data directory for the full process restart.
 
 ## Verification boundaries
 
-Ruff, formatting, strict mypy (31 source files), all 95 tests with explicit live
+Ruff, formatting, strict mypy (32 source files), all 98 tests with explicit live
 service settings (none skipped), and Alembic schema-drift checks pass locally.
 The lockfile consistency check and actionlint workflow validation also pass.
-GitHub Actions is prepared to run these checks with PostgreSQL and RabbitMQ
-service containers; its first
-remote run requires publication and has not been verified in this milestone.
+GitHub Actions also passed these checks with PostgreSQL and RabbitMQ service
+containers: [verified run](https://github.com/gipopotamus/async-payment-processing/actions/runs/37028803693).
 
 Docker Compose configuration is provided, but image build and Compose startup have
 not been tested because Docker is unavailable locally. CI service containers do

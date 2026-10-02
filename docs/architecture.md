@@ -1,10 +1,8 @@
-# Implementation contract
+# Architecture
 
-This document records the implementation contract. Milestones 1-5 implement the
-foundation, database lifecycle, models, migrations, and payment creation/lookup
-described in README, plus separately executable outbox and consumer processes.
-Workflow/loopback HTTP checks pass. Live RabbitMQ delivery and container startup
-remain unverified.
+The API, outbox relay, and payment consumer run as separate processes.
+Integration checks cover PostgreSQL, RabbitMQ, and an HTTP webhook receiver.
+Docker image build and Compose startup remain unverified.
 
 ## Responsibilities and dependency injection
 
@@ -18,7 +16,7 @@ remain unverified.
 Compose dependencies once at each process entry point and inject them explicitly.
 Use FastAPI `Depends` for request-scoped dependencies and constructors/arguments
 for application dependencies. Database sessions are scoped to each request/task.
-Use narrow protocols for the gateway and webhook sender when implemented, so their
+Use narrow protocols for the gateway and webhook sender, so their
 test adapters share the same behavior and error contract. Do not expose Request,
 RabbitMessage, or global service locators to application rules.
 

@@ -37,7 +37,7 @@ class WorkflowRepository:
             InvalidWorkflow: A message does not match a stored publication/payment.
             WorkflowNotReady: The event arrived before its persisted due date.
         """
-        # ponytail: bounded network call under a row lock; leased stages if throughput requires it.
+        # Keep state and scheduled events atomic during the bounded external operation.
         async with self._database.session() as session, session.begin():
             payment = await session.scalar(
                 select(Payment).where(Payment.id == event.payment_id).with_for_update()

@@ -5,16 +5,17 @@ emulated gateway, and deliver their results via webhook.
 
 ## Current status
 
-All six milestones are implemented: authenticated FastAPI, PostgreSQL persistence,
-concurrent idempotency, a separate outbox relay, and a separate payment consumer
+The service includes authenticated FastAPI, PostgreSQL persistence,
+concurrent idempotency, a separate outbox relay, and a payment consumer
 with gateway processing, webhook retries, and DLQ delivery. DI keeps application
 rules independent of transports and database adapters.
 
 Local checks pass with actual PostgreSQL, RabbitMQ, and a loopback HTTP receiver.
 Four-process acceptance also verifies broker outage recovery, consumer restart,
 durable messages after a full broker restart, and exhausted webhook delivery.
-See [acceptance evidence and boundaries](docs/acceptance.md). GitHub Actions is
-prepared; its remote execution and Docker image/Compose startup remain unverified.
+See [acceptance evidence and boundaries](docs/acceptance.md). GitHub Actions
+passes all 98 tests, lint, formatting, type checks, and migration checks.
+Docker image build and Compose startup remain unverified.
 
 ## Development
 
@@ -320,19 +321,7 @@ The consumer waits for broker health and successful migrations at initial startu
 Callback URLs must be reachable from its container; a loopback development receiver
 on the host requires a different destination/origin than the local example.
 
-## Commit sequence
-
-Each milestone is a separate local commit. Publication and the next milestone
-require the user's approval after that commit.
-
-1. Foundation: package, configuration DI, authentication, checks, architecture.
-2. Persistence and environment: SQLAlchemy models, Alembic, Docker Compose.
-3. Payment API: validation, transactional creation, concurrent idempotency, GET.
-4. Outbox worker: confirmed publication, durable scheduling, recovery.
-5. Consumer: gateway processing, webhook delivery, retries, DLQ.
-6. Acceptance: failure-window integration tests, runnable examples, final README.
-
-## Approved architecture
+## Architecture
 
 The final Compose environment has `postgres`, `rabbitmq`, `api`, `outbox-worker`,
 and `consumer`, plus a one-shot migration service. The three application processes
