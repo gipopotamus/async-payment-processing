@@ -14,6 +14,7 @@ from payments.adapters import EmulatedGateway, HttpWebhookSender
 from payments.broker import PAYMENTS_QUEUE, create_broker
 from payments.database import create_database
 from payments.domain import InvalidWorkflow
+from payments.logging_config import configure_logging
 from payments.processing import PaymentProcessor
 from payments.schemas import WorkflowEnvelope
 from payments.services import WebhookPolicy
@@ -110,6 +111,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_logging()
     with suppress(KeyboardInterrupt):
         asyncio.run(main())

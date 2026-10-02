@@ -8,7 +8,8 @@ from contextlib import suppress
 from sqlalchemy.exc import SQLAlchemyError
 
 from payments.broker import RabbitEventPublisher, create_broker
-from payments.database import create_database
+from payments.database import DatabaseUnavailable, create_database
+from payments.logging_config import configure_logging
 from payments.outbox import OutboxRelay
 from payments.settings import BrokerSettings, DatabaseSettings, RelaySettings
 
@@ -20,7 +21,7 @@ async def run_relay(relay: OutboxRelay, stop: asyncio.Event, poll_interval: floa
     while not stop.is_set():
         try:
             worked = await relay.publish_next()
-        except (SQLAlchemyError, OSError, TimeoutError) as error:
+        except (DatabaseUnavailable, SQLAlchemyError, OSError, TimeoutError) as error:
             logger.error("Outbox storage unavailable: %s", type(error).__name__)
             worked = False
         if not worked:
@@ -52,6 +53,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_logging()
     with suppress(KeyboardInterrupt):
         asyncio.run(main())

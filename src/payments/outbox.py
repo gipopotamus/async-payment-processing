@@ -50,7 +50,7 @@ class OutboxRelay:
         Publication failures are retained with sanitized error types and a due date.
         """
         # ponytail: one bounded network-held row lock; leased claims if throughput requires it.
-        async with self._database.sessions() as session, session.begin():
+        async with self._database.session() as session, session.begin():
             event = await session.scalar(
                 select(OutboxEvent)
                 .where(

@@ -38,7 +38,7 @@ class WorkflowRepository:
             WorkflowNotReady: The event arrived before its persisted due date.
         """
         # ponytail: bounded network call under a row lock; leased stages if throughput requires it.
-        async with self._database.sessions() as session, session.begin():
+        async with self._database.session() as session, session.begin():
             payment = await session.scalar(
                 select(Payment).where(Payment.id == event.payment_id).with_for_update()
             )
@@ -92,7 +92,7 @@ class WorkflowRepository:
         fingerprint = digest.hexdigest()
         event_id = uuid5(NAMESPACE_URL, f"payments.invalid:{fingerprint}")
         safe_reason = "invalid_workflow" if reason == "invalid_workflow" else "malformed_message"
-        async with self._database.sessions() as session, session.begin():
+        async with self._database.session() as session, session.begin():
             known_id = (
                 await session.scalar(select(Payment.id).where(Payment.id == payment_id))
                 if payment_id is not None

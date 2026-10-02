@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from payments.database import Database, create_database
+from payments.database import Database, DatabaseUnavailable, create_database
 from payments.domain import IdempotencyConflict, InvalidWebhook, PaymentNotFound
 from payments.repository import PaymentRepository
 from payments.schemas import AcceptedPayment, CreatePaymentRequest, PaymentDetails
@@ -47,7 +47,7 @@ async def get_session(
     database: Annotated[Database, Depends(get_database)],
 ) -> AsyncGenerator[AsyncSession]:
     """Provide an isolated session and roll back uncommitted work on close."""
-    async with database.sessions() as session:
+    async with database.session() as session:
         yield session
 
 
@@ -167,6 +167,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.state.webhook_policy = WebhookPolicy(app.state.settings.webhook_allowed_origins)
     app.add_exception_handler(RequestValidationError, validation_error)
     app.add_exception_handler(SQLAlchemyError, storage_error)
+    app.add_exception_handler(DatabaseUnavailable, storage_error)
     app.add_api_route("/health", get_health, methods=["GET"], tags=["health"])
     app.add_api_route(
         "/api/v1/payments",

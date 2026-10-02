@@ -1,6 +1,7 @@
 """Stable emulator behavior and HTTP trust-boundary contracts without external services."""
 
 import json
+import logging
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -11,6 +12,7 @@ import pytest
 
 from payments.adapters import EmulatedGateway, HttpWebhookSender, gateway_outcome
 from payments.domain import Currency, PaymentSnapshot, PaymentStatus, WebhookError, WebhookStatus
+from payments.logging_config import configure_logging
 from payments.processing import webhook_event_id
 from payments.services import WebhookPolicy
 
@@ -98,6 +100,33 @@ async def test_webhook_non_success_and_redirects(status: int) -> None:
         with pytest.raises(WebhookError, match=f"^HTTP {status}$"):
             await HttpWebhookSender(client, policy).send(terminal_payment(), UUID(int=1))
     assert len(requests) == 1
+
+
+async def test_worker_logging_excludes_callback_query_tokens(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Send a callback with a fake token without leaking it through HTTPX INFO logging."""
+    loggers = [logging.getLogger(name) for name in ("httpx", "httpcore")]
+    original_levels = [logger.level for logger in loggers]
+    try:
+        with caplog.at_level(logging.INFO):
+            configure_logging()
+            policy = WebhookPolicy(frozenset({"http://receiver.test"}))
+            payment = replace(
+                terminal_payment(),
+                webhook_url="http://receiver.test/callback?token=FAKE_PRIVATE_CALLBACK_TOKEN",
+            )
+            async with httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda request: httpx.Response(204))
+            ) as client:
+                await HttpWebhookSender(client, policy).send(payment, UUID(int=1))
+            logging.getLogger("payments.consumer").info("Safe delivery diagnostic")
+        assert "Safe delivery diagnostic" in caplog.text
+        assert "FAKE_PRIVATE_CALLBACK_TOKEN" not in caplog.text
+        assert "receiver.test/callback" not in caplog.text
+    finally:
+        for logger, level in zip(loggers, original_levels, strict=True):
+            logger.setLevel(level)
 
 
 async def test_blocked_callback_and_sanitized_network_error() -> None:

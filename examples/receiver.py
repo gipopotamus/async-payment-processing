@@ -87,7 +87,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.failures < 0 or not 1 <= args.port <= 65535:
         parser.error("failures must be nonnegative and port must be between 1 and 65535")
-    uvicorn.run(create_receiver(args.failures), host="127.0.0.1", port=args.port)
+    uvicorn.run(create_receiver(args.failures), host="127.0.0.1", port=args.port, access_log=False)
 
 
 if __name__ == "__main__":

@@ -101,6 +101,8 @@ GET returns payment fields, a decimal string amount, and independent webhook pro
 An absent ID returns `404`, an invalid UUID returns `422`, and missing/invalid API
 credentials return `401`. Storage errors return a sanitized `503` with `Retry-After: 1`;
 retry POST using the original idempotency key when the outcome is uncertain.
+Raw driver/network connection failures use this same response, including when a
+local PostgreSQL port is unavailable. Unexpected programming errors remain distinct.
 
 ## Local outbox worker
 
@@ -178,6 +180,9 @@ This ID stays stable across retry messages and uncertain HTTP outcomes. The rece
 must deduplicate it. Only 2xx counts as delivery; redirects and other statuses fail.
 The client is reused, responses are streamed without loading their bodies, and the
 incoming API key is never forwarded.
+Worker logging suppresses HTTPX request and HTTPcore wire diagnostics so callback
+URLs and query tokens do not appear in INFO logs. Application diagnostics retain
+sanitized error types; the demo receiver also disables access logs.
 
 The consumer ACKs after a committed result, retry, DLQ intent, or harmless duplicate.
 On database errors, early messages, or unknown internal failures it waits
